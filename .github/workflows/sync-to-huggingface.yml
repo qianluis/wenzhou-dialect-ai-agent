@@ -1,0 +1,22 @@
+name: Sync to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync-to-huggingface:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Sync repository to Hugging Face Space
+        uses: huggingface/hub-sync@v0.1.1
+        with:
+          github_repo_id: qianluis/wenzhou-dialect-ai-agent
+          huggingface_repo_id: qianluis/wenzhou-dialect-ai-agent
+          repo_type: space
+          token: ${{ secrets.HF_TOKEN }}
