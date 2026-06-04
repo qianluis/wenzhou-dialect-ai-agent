@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Outputs (generated)
+outputs/*.wav
+outputs/*.mp3
+
+# Data corrections (user-provided data)
+data/corrections/*.csv
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Docker
+.docker/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Jupyter
+.pytest_cache/
+.mypy_cache/
