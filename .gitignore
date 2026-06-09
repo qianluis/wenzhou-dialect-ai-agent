@@ -42,3 +42,18 @@ logs/
 # Jupyter
 .pytest_cache/
 .mypy_cache/
+
+# Pretrained models (downloads, large)
+pretrained_models/
+
+# Gradio cache
+.gradio/
+
+# Test audio files
+*.wav
+
+# Memory notes (local)
+memory/
+
+# Deployment scripts
+scripts/

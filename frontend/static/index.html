@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>🗣️ 温州话 ↔ 普通话 实时对话</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif}
+body{background:#0a0a1a;color:#e8eaf0;min-height:100vh;padding:0}
+.container{max-width:520px;margin:0 auto;padding:12px;min-height:100vh;display:flex;flex-direction:column}
+
+/* Header */
+.header{text-align:center;padding:14px 0 10px}
+.header h1{font-size:20px;color:#06b6d4;display:flex;align-items:center;justify-content:center;gap:8px}
+.header .sub{font-size:12px;color:#6a6e8a;margin-top:2px}
+
+/* Mode selector */
+.mode-bar{display:flex;gap:4px;margin-bottom:10px}
+.mode-btn{flex:1;padding:9px 6px;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;background:#1e1e45;color:#6a6e8a;transition:all .2s;text-align:center}
+.mode-btn.active{background:#06b6d4;color:#fff}
+.mode-btn:active{transform:scale(0.96)}
+
+/* Chat area */
+.chat-area{flex:1;overflow-y:auto;padding:4px 0 10px;display:flex;flex-direction:column;gap:8px;min-height:200px;max-height:60vh}
+.chat-msg{max-width:85%;padding:10px 14px;border-radius:14px;line-height:1.6;font-size:14px;animation:fadeIn .25s ease}
+.chat-msg.left{align-self:flex-start;background:#16163a;border:1px solid #262650;border-bottom-left-radius:4px}
+.chat-msg.right{align-self:flex-end;background:#064663;border:1px solid #065a78;border-bottom-right-radius:4px}
+.chat-msg .label{font-size:11px;color:#6a6e8a;margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.chat-msg .label .badge{background:#06b6d4;color:#000;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600}
+.chat-msg .text{word-break:break-word}
+.chat-msg .asr-raw{font-size:12px;color:#8a8eb0;margin-top:6px;padding-top:6px;border-top:1px solid #262650}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.typing{display:flex;gap:4px;padding:5px 0}
+.typing span{width:6px;height:6px;background:#06b6d4;border-radius:50%;animation:bounce 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.empty-chat{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#4a4e6a;font-size:14px;gap:6px}
+.empty-chat .icon{font-size:36px;margin-bottom:6px}
+.empty-chat .title{color:#6a6e8a;font-size:14px;font-weight:500}
+
+/* Recording bar */
+.control-bar{background:#16163a;border-radius:16px;padding:12px;border:1px solid #262650;margin-top:auto}
+.audio-controls{display:flex;gap:8px;align-items:center}
+.rec-btn{flex:1;padding:16px;border-radius:12px;border:none;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+.rec-btn.idle{background:#06b6d4;color:#fff}
+.rec-btn.recording{background:#ef4444;color:#fff;animation:pulse 1.2s ease-in-out infinite}
+.rec-btn:active{transform:scale(0.97)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.rec-btn:disabled{background:#333;color:#666;cursor:not-allowed}
+.file-btn{padding:14px;border-radius:12px;border:1px dashed #333;background:#1e1e45;color:#8a8eb0;cursor:pointer;text-align:center;font-size:18px;transition:all .2s;min-width:50px;display:flex;align-items:center;justify-content:center}
+.file-btn:active{background:#262650}
+.timer{font-size:13px;color:#ccc;min-width:40px;text-align:center}
+.status-bar{font-size:11px;color:#6a6e8a;text-align:center;margin-top:8px;padding:4px;min-height:20px}
+
+/* Info panel */
+.info-bar{display:flex;gap:4px;margin:6px 0}
+.info-btn{flex:1;padding:7px;border:none;border-radius:6px;font-size:11px;cursor:pointer;background:#1e1e45;color:#6a6e8a;transition:all .2s}
+.info-btn.active{background:#262650;color:#e8eaf0}
+.info-panel{background:#16163a;border-radius:12px;padding:14px;border:1px solid #262650;margin-bottom:8px;display:none;font-size:13px;line-height:1.7}
+.info-panel.show{display:block}
+.info-panel .dict-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e1e45}
+.info-panel .dict-item:last-child{border-bottom:none}
+.info-panel .dict-mandarin{color:#06b6d4}
+.info-panel .dict-wenzhou{color:#8a8eb0}
+.search-box{width:100%;padding:8px 10px;background:#1e1e45;color:#e8eaf0;border:1px solid #333;border-radius:8px;font-size:13px;margin-bottom:8px}
+.search-box:focus{outline:none;border-color:#06b6d4}
+
+/* Play TTS btn */
+.play-tts{background:none;border:1px solid #06b6d440;color:#06b6d4;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .2s;margin-left:4px}
+.play-tts:hover{background:#06b6d420}
+
+@media(max-width:400px){
+  .container{padding:8px}
+  .chat-msg{max-width:90%}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>🗣️ 温州话 ↔ 普通话</h1>
+    <div class="sub">实时对话 · 双向翻译 · 语音朗读</div>
+  </div>
+
+  <!-- Mode bar -->
+  <div class="mode-bar">
+    <button class="mode-btn active" data-mode="auto" onclick="switchMode('auto')">🤖 自动</button>
+    <button class="mode-btn" data-mode="wenzhou_to_mandarin" onclick="switchMode('wenzhou_to_mandarin')">📍 温→普</button>
+    <button class="mode-btn" data-mode="mandarin_to_wenzhou" onclick="switchMode('mandarin_to_wenzhou')">📍 普→温</button>
+    <button class="mode-btn" data-mode="wenzhou_to_wenzhou" onclick="switchMode('wenzhou_to_wenzhou')">📝 转写</button>
+  </div>
+
+  <!-- Info bar -->
+  <div class="info-bar">
+    <button class="info-btn" onclick="toggleInfo('lexicon')">📖 词典</button>
+    <button class="info-btn" onclick="toggleInfo('about')">ℹ️ 关于</button>
+  </div>
+
+  <!-- Lexicon panel -->
+  <div class="info-panel" id="info-lexicon">
+    <input class="search-box" id="lexiconSearch" placeholder="🔍 搜索词条（如：吃饭、再见）" oninput="filterLexicon()">
+    <div id="lexiconList" style="max-height:300px;overflow-y:auto"></div>
+  </div>
+
+  <!-- About panel -->
+  <div class="info-panel" id="info-about">
+    本项目使用 <b>FireRedASR2-AED</b> 和 <b>SenseVoiceSmall</b> 实现温州话语音识别，内置 <b id="lexiconCount">...</b> 组温普词汇映射词典。<br><br>
+    📱 长按录音按钮即可录制语音，松手自动识别翻译。<br>
+    🔄 <b>自动模式</b>：系统会尝试判断你说的是温州话还是普通话。<br>
+    🔊 翻译结果支持语音朗读（edge-tts）。
+  </div>
+
+  <!-- Chat area -->
+  <div class="chat-area" id="chatArea">
+    <div class="empty-chat">
+      <div class="icon">🎙️</div>
+      <div class="title">按住录音或上传音频文件</div>
+      <div>我说温州话，你翻译成普通话</div>
+      <div>我说普通话，你翻译成温州话</div>
+    </div>
+  </div>
+
+  <!-- Control bar -->
+  <div class="control-bar">
+    <div class="audio-controls">
+      <button class="rec-btn idle" id="recBtn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">
+        <span>🎙️</span> <span id="recBtnText">按住录音</span>
+      </button>
+      <span class="timer" id="timer"></span>
+      <label class="file-btn" title="上传音频文件">
+        📁
+        <input type="file" accept="audio/*" style="display:none" id="fileInput" onchange="handleFile(event)">
+      </label>
+    </div>
+    <div class="status-bar" id="statusBar">提示：长按按钮录音，松手自动翻译</div>
+  </div>
+</div>
+
+<audio id="ttsPlayer" style="display:none"></audio>
+
+<script>
+// ── State ──
+let currentMode = 'auto';
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let recordedBlob = null;
+let selectedFile = null;
+let recordingTimer = null;
+let seconds = 0;
+let isProcessing = false;
+const BASE = window.location.origin;
+const chatArea = document.getElementById('chatArea');
+let msgCounter = 0;
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+  loadLexiconStats();
+  // Reset recording state on page unload
+  window.addEventListener('beforeunload', function() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+  });
+});
+
+// ── Mode switching ──
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  addSystemMsg(`切换到${mode === 'auto' ? '🤖 自动模式' : mode === 'wenzhou_to_mandarin' ? '📍 温州话→普通话' : mode === 'mandarin_to_wenzhou' ? '📍 普通话→温州话' : '📝 转写模式'}`);
+}
+
+// ── Info panels ──
+function toggleInfo(name) {
+  const panel = document.getElementById('info-' + name);
+  const btn = document.querySelector(`.info-btn[onclick*="${name}"]`);
+  panel.classList.toggle('show');
+  btn.classList.toggle('active', panel.classList.contains('show'));
+}
+async function loadLexiconStats() {
+  try {
+    const r = await fetch(BASE + '/api/lexicon/count');
+    const d = await r.json();
+    document.getElementById('lexiconCount').textContent = d.mandarin_to_wenzhou || '200+';
+    // Load first page of lexicon
+    showLexicon();
+  } catch(e) {}
+}
+const demoLexicon = {};
+async function showLexicon() {
+  const list = document.getElementById('lexiconList');
+  list.innerHTML = '<div style="color:#6a6e8a">加载词典...</div>';
+  try {
+    const r = await fetch(BASE + '/api/lexicon/count');
+    const d = await r.json();
+    list.innerHTML = `<div style="color:#6a6e8a;margin-bottom:6px">共 ${d.mandarin_to_wenzhou} 组词汇映射</div>`;
+  } catch(e) {
+    list.innerHTML = '';
+  }
+}
+function filterLexicon() {
+  const q = document.getElementById('lexiconSearch').value.trim();
+  const list = document.getElementById('lexiconList');
+  if (!q) {
+    list.innerHTML = '<div style="color:#6a6e8a">输入关键词搜索词条</div>';
+    return;
+  }
+  list.innerHTML = '<div style="color:#6a6e8a">搜索中...</div>';
+  fetch(BASE + '/api/translate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: q, action: 'lookup'})
+  }).catch(() => {
+    // Offline fallback
+    list.innerHTML = '<div style="color:#8a8eb0">离线模式下词典搜索不可用</div>';
+  });
+}
+
+// ── Chat messages ──
+function addSystemMsg(text) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg left';
+  div.style.maxWidth = '100%';
+  div.style.textAlign = 'center';
+  div.style.background = 'transparent';
+  div.style.border = 'none';
+  div.style.padding = '6px';
+  div.style.fontSize = '12px';
+  div.style.color = '#6a6e8a';
+  div.textContent = text;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function addMessage(direction, sourceText, targetText, asrRaw, ttsUrl) {
+  const div = document.createElement('div');
+  const isSourceWenzhou = direction === 'wenzhou_to_mandarin' || direction === 'wenzhou_to_wenzhou';
+  const label = direction === 'wenzhou_to_mandarin' ? '温州话→普通话' :
+                direction === 'mandarin_to_wenzhou' ? '普通话→温州话' :
+                direction === 'wenzhou_to_wenzhou' ? '温州话转写' : '翻译';
+  const badge = direction === 'wenzhou_to_mandarin' ? '温→普' :
+                direction === 'mandarin_to_wenzhou' ? '普→温' : '转写';
+
+  // Source and result as one message (right-aligned = our side)
+  div.className = 'chat-msg right';
+  
+  let html = `<div class="label"><span class="badge">${badge}</span>${label}</div>`;
+  
+  // Show the target translation prominently
+  if (targetText && targetText !== asrRaw) {
+    html += `<div class="text">${targetText}`;
+    if (ttsUrl) {
+      html += `<button class="play-tts" onclick="playTTS('${ttsUrl}')">🔊 播放</button>`;
+    }
+    html += `</div>`;
+  }
+  
+  // Show source ASR as secondary
+  if (asrRaw && asrRaw !== targetText) {
+    html += `<div class="asr-raw">📝 识别：${asrRaw}</div>`;
+  }
+  
+  div.innerHTML = html;
+  chatArea.appendChild(div);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  msgCounter++;
+}
+
+// Remove empty state
+function clearEmptyState() {
+  const empty = chatArea.querySelector('.empty-chat');
+  if (empty) empty.remove();
+}
+
+// ── Recording (press & hold) ──
+async function startRecording(e) {
+  if (isProcessing) return;
+  if (isRecording) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('您的浏览器不支持录音，请用文件上传');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream, {
+      mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'
+    });
+    audioChunks = [];
+    recordedBlob = null;
+    selectedFile = null;
+
+    mediaRecorder.ondataavailable = function(e) {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+    mediaRecorder.onstop = function() {
+      stream.getTracks().forEach(t => t.stop());
+      recordedBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      if (audioChunks.length > 0) {
+        processAudio(recordedBlob);
+      }
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    seconds = 0;
+    document.getElementById('recBtn').className = 'rec-btn recording';
+    document.getElementById('recBtnText').textContent = '⏹ 松手停止';
+    document.getElementById('timer').textContent = '0s';
+    recordingTimer = setInterval(() => {
+      seconds++;
+      document.getElementById('timer').textContent = seconds + 's';
+    }, 1000);
+  } catch(e) {
+    alert('无法访问麦克风: ' + e.message);
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  clearInterval(recordingTimer);
+  document.getElementById('recBtn').className = 'rec-btn idle';
+  document.getElementById('recBtnText').textContent = '🎙️ 按住录音';
+  document.getElementById('timer').textContent = '';
+}
+
+// ── File upload ──
+function handleFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  selectedFile = file;
+  recordedBlob = null;
+  if (isRecording) stopRecording();
+  processAudio(file);
+  // Reset input so same file can be uploaded again
+  event.target.value = '';
+}
+
+// ── Process audio ──
+async function processAudio(audioBlob) {
+  if (isProcessing) return;
+  isProcessing = true;
+  clearEmptyState();
+
+  // Determine direction
+  let direction = currentMode;
+  const statusBar = document.getElementById('statusBar');
+  const recBtn = document.getElementById('recBtn');
+
+  statusBar.innerHTML = '<span class="loading"></span>识别中...';
+
+  // Step 1: If auto mode, detect direction first
+  if (direction === 'auto') {
+    statusBar.innerHTML = '<span class="loading"></span>正在判断语言方向...';
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      const resp = await fetch(BASE + '/api/detect', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.direction) {
+        direction = data.direction;
+        addSystemMsg(`🤖 自动识别为：${direction === 'wenzhou_to_mandarin' ? '温州话→普通话' : '普通话→温州话'}`);
+      } else {
+        direction = 'wenzhou_to_mandarin'; // default
+        addSystemMsg('🤖 未能判断语言方向，默认使用温州话→普通话');
+      }
+    } catch(e) {
+      direction = 'wenzhou_to_mandarin';
+      addSystemMsg('🤖 方向检测失败，默认使用温州话→普通话');
+    }
+  }
+
+  statusBar.innerHTML = '<span class="loading"></span>正在翻译...';
+
+  // Step 2: Translate
+  try {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.webm');
+    formData.append('direction', direction);
+    formData.append('context', '');
+    
+    const resp = await fetch(BASE + '/api/translate', { method: 'POST', body: formData });
+    const data = await resp.json();
+    
+    if (data.error) {
+      statusBar.innerHTML = '❌ ' + data.error;
+      recBtn.disabled = false;
+      isProcessing = false;
+      return;
+    }
+
+    addMessage(
+      direction,
+      data.source_text || data.asr_raw,
+      data.target_text,
+      data.asr_raw,
+      data.tts_url
+    );
+
+    const timings = data.stage_timings || {};
+    const total_s = ((timings.total_ms || 0) / 1000).toFixed(1);
+    statusBar.innerHTML = `✅ 完成 (${total_s}s) | ASR:${((timings.asr_ms||0)/1000).toFixed(1)}s 翻译:${((timings.translate_ms||0)/1000).toFixed(1)}s`;
+
+    // Auto-play TTS
+    if (data.tts_url) {
+      setTimeout(() => playTTS(data.tts_url), 300);
+    }
+  } catch(e) {
+    statusBar.innerHTML = '❌ 网络错误';
+  }
+  
+  isProcessing = false;
+}
+
+// ── TTS playback ──
+function playTTS(url) {
+  const player = document.getElementById('ttsPlayer');
+  player.src = url;
+  player.play().catch(() => {});
+}
+</script>
+</body>
+</html>
