@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>温州话桥</title>
+<style>
+  :root{--blue:#2563eb;--red:#dc2626}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+       max-width:680px;margin:24px auto;padding:0 16px;color:#1a1a1a;background:#fafafa}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#888;font-size:13px;margin:0 0 20px}
+  h2{font-weight:600;font-size:16px;margin:24px 0 8px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+  #log{min-height:140px;max-height:320px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;
+       padding:12px;margin:8px 0;white-space:pre-wrap;line-height:1.7;background:#fff}
+  .mand{color:#111}
+  .raw{color:#9ca3af;font-size:13px}
+  textarea{width:100%;height:84px;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-size:15px;resize:vertical}
+  button{padding:9px 18px;border:0;border-radius:8px;background:var(--blue);color:#fff;font-size:15px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.rec{background:var(--red)}
+  select{padding:9px;border:1px solid #e5e7eb;border-radius:8px;font-size:15px}
+  .row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;margin-right:6px;vertical-align:middle}
+  .dot.on{background:#16a34a}
+  .dot.busy{background:#f59e0b}
+  #state{color:#6b7280;font-size:14px}
+  audio{width:100%;margin-top:10px}
+</style>
+</head>
+<body>
+  <h1>温州话桥 <span style="font-weight:400;color:#9ca3af">wenzhou-bridge</span></h1>
+  <p class="sub">第一阶段 · A 方向:① 录音 → 普通话文字　② 普通话文字 → 语音(本机 CPU 引擎)</p>
+
+  <h2>① 录音 → 普通话</h2>
+  <div class="card">
+    <div class="row">
+      <button id="mic">开始录音</button>
+      <span id="state"><span class="dot" id="dot"></span>就绪</span>
+    </div>
+    <div id="log"></div>
+    <p class="raw" style="margin:4px 0 0">说一句停顿一下即出结果。原始识别(灰色)与规范化普通话(黑色)并列展示。</p>
+  </div>
+
+  <h2>② 普通话 → 语音</h2>
+  <div class="card">
+    <textarea id="text" placeholder="打字或粘贴普通话…例如:今天去医院,医生让我明天再来。"></textarea>
+    <div class="row">
+      <select id="voice">
+        <option value="zh-CN-XiaoxiaoNeural">晓晓(女)</option>
+        <option value="zh-CN-YunxiNeural">云希(男)</option>
+        <option value="zh-CN-XiaoyiNeural">晓伊(女)</option>
+        <option value="zh-CN-YunyangNeural">云扬(男)</option>
+      </select>
+      <button id="speak">合成播放</button>
+      <span id="ttsState" class="raw"></span>
+    </div>
+    <audio id="player" controls></audio>
+  </div>
+
+<script>
+const SR = 16000;
+let ws, audioCtx, node, srcNode, stream, recording = false;
+const log = document.getElementById('log');
+const dot = document.getElementById('dot');
+const setState = (t, cls) => {
+  document.getElementById('state').innerHTML =
+    `<span class="dot ${cls||''}" id="dot"></span>${t}`;
+};
+
+function appendFinal(m){
+  const div = document.createElement('div');
+  div.innerHTML = `<span class="mand">${escapeHtml(m.mandarin || m.raw)}</span>` +
+    (m.raw && m.raw !== m.mandarin ? `　<span class="raw">(原始:${escapeHtml(m.raw)})</span>` : '');
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+function escapeHtml(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+document.getElementById('mic').onclick = async () => {
+  if (recording) return stopRec();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+  } catch (e) {
+    setState('麦克风授权失败', ''); return;
+  }
+  ws = new WebSocket(`ws://${location.host}/ws/asr`);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => startCapture();
+  ws.onerror = () => setState('连接出错', '');
+  ws.onclose = () => { if (recording) stopRec(); };
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'final') { setState('录音中…', 'on'); appendFinal(m); }
+    else if (m.type === 'recognizing') setState('识别中…', 'busy');
+    else if (m.type === 'error') { const d=document.createElement('div'); d.className='raw'; d.textContent='⚠ '+m.msg; log.appendChild(d); }
+  };
+};
+
+function startCapture(){
+  audioCtx = new AudioContext();
+  srcNode = audioCtx.createMediaStreamSource(stream);
+  node = audioCtx.createScriptProcessor(4096, 1, 1);
+  srcNode.connect(node); node.connect(audioCtx.destination);
+  node.onaudioprocess = ev => {
+    if (!ws || ws.readyState !== 1) return;
+    const inBuf = ev.inputBuffer.getChannelData(0);
+    ws.send(downsampleTo16k(inBuf, audioCtx.sampleRate).buffer);
+  };
+  recording = true;
+  const b = document.getElementById('mic');
+  b.textContent = '停止录音'; b.classList.add('rec');
+  setState('录音中…', 'on');
+}
+
+// 线性插值重采样到 16k 后转 PCM16(CLAUDE.md:第一阶段先用线性插值跑通)
+function downsampleTo16k(input, inRate){
+  if (inRate === SR){
+    const out = new Int16Array(input.length);
+    for (let i=0;i<input.length;i++){const s=Math.max(-1,Math.min(1,input[i]));out[i]=s<0?s*0x8000:s*0x7fff;}
+    return out;
+  }
+  const ratio = inRate / SR;
+  const outLen = Math.floor(input.length / ratio);
+  const out = new Int16Array(outLen);
+  for (let i=0;i<outLen;i++){
+    const pos = i*ratio, lo = Math.floor(pos), hi = Math.min(lo+1, input.length-1);
+    const v = input[lo] + (input[hi]-input[lo])*(pos-lo);   // 线性插值
+    const s = Math.max(-1, Math.min(1, v));
+    out[i] = s<0 ? s*0x8000 : s*0x7fff;
+  }
+  return out;
+}
+
+function stopRec(){
+  recording = false;
+  node && node.disconnect(); srcNode && srcNode.disconnect();
+  stream && stream.getTracks().forEach(t=>t.stop());
+  audioCtx && audioCtx.close(); ws && ws.readyState<=1 && ws.close();
+  const b = document.getElementById('mic');
+  b.textContent = '开始录音'; b.classList.remove('rec');
+  setState('就绪', '');
+}
+
+document.getElementById('speak').onclick = async () => {
+  const text = document.getElementById('text').value.trim();
+  if (!text) return;
+  const voice = document.getElementById('voice').value;
+  const st = document.getElementById('ttsState');
+  st.textContent = '合成中…';
+  try {
+    const r = await fetch('/tts', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text, voice})});
+    if (!r.ok){ st.textContent = '合成失败 ('+r.status+')'; return; }
+    const blob = await r.blob();
+    const p = document.getElementById('player');
+    p.src = URL.createObjectURL(blob);
+    await p.play();
+    st.textContent = '';
+  } catch(e){ st.textContent = '合成失败'; }
+};
+</script>
+</body>
+</html>

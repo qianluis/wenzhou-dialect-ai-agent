@@ -1,0 +1,12 @@
+# 编排层 + CPU 推理引擎(第一阶段,无 GPU)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+numpy>=1.26
+webrtcvad>=2.0.10        # 句级断句(需 gcc/python3-dev;装不上会自动回退能量断句)
+setuptools<81            # webrtcvad 依赖 pkg_resources,新版 setuptools 已移除
+faster-whisper>=1.0.0    # ASR(CTranslate2, CPU/int8)
+edge-tts>=6.1.12         # 普通话 TTS(在线)
+opencc>=1.1.6            # 繁转简(whisper 易出繁体;装不上则自动跳过)
+# 可选:NORM_BACKEND=openai 时走网关重写
+openai>=1.0
